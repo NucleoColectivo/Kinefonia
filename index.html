@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinefonía - Una Experiencia Interactiva</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            --cyan-glow: rgba(8, 145, 178, 0.4);
+            --cyan-light: #06b6d4;
+            --cyan-dark: #0891B2;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Inter', sans-serif;
+            color: #e5e7eb; /* gray-200 */
+        }
+        canvas {
+            display: block;
+        }
+        .ui-interactive {
+            pointer-events: auto;
+        }
+        #video-preview {
+            position: absolute;
+            bottom: 1.5rem;
+            right: 1.5rem;
+            width: 100px;
+            height: 75px;
+            border-radius: 0.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            object-fit: cover;
+            transform: scaleX(-1);
+            z-index: 20;
+            pointer-events: auto;
+            display: none;
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+        #video-preview:hover {
+            opacity: 1;
+        }
+        .loader-icon {
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        /* --- Start Screen --- */
+        #start-screen {
+            background: radial-gradient(circle, rgba(14, 27, 34, 0.8) 0%, #000 70%);
+        }
+        #start-screen h1 {
+            animation: text-glow 2.5s ease-in-out infinite alternate;
+        }
+        #start-button {
+             animation: button-pulse 2.5s ease-in-out infinite alternate;
+        }
+        @keyframes text-glow {
+            from { text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px var(--cyan-dark), 0 0 40px var(--cyan-dark); }
+            to { text-shadow: 0 0 20px #fff, 0 0 30px var(--cyan-light), 0 0 40px var(--cyan-light), 0 0 50px var(--cyan-light); }
+        }
+        @keyframes button-pulse {
+            from { box-shadow: 0 0 15px 0px var(--cyan-dark); transform: scale(1.0); }
+            to { box-shadow: 0 0 25px 8px var(--cyan-glow); transform: scale(1.05); }
+        }
+
+        /* --- In-Experience UI Panel --- */
+        #controls-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            height: 100%;
+            width: 320px;
+            background: rgba(10, 20, 25, 0.7);
+            backdrop-filter: blur(15px);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+            z-index: 30;
+            pointer-events: auto;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+        }
+        #controls-panel.open {
+            transform: translateX(0);
+        }
+        #open-controls-button {
+            position: absolute;
+            top: 1.5rem;
+            right: 1.5rem;
+            z-index: 40;
+            pointer-events: auto;
+            background: rgba(10, 20, 25, 0.5);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+         #open-controls-button:hover {
+             transform: scale(1.1) rotate(90deg);
+             background: rgba(8, 145, 178, 0.5);
+         }
+         .viz-button {
+            background-color: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: all 0.2s ease-in-out;
+         }
+         .viz-button:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            border-color: var(--cyan-light);
+         }
+         .viz-button.active {
+            background-color: var(--cyan-dark);
+            color: white;
+            border-color: var(--cyan-light);
+            box-shadow: 0 0 10px var(--cyan-glow);
+         }
+    </style>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- Botón para abrir el panel de control -->
+    <button id="open-controls-button" class="p-3 rounded-full hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 0 2.73l-.15.08a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l-.22-.38a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1 0-2.73l.15.08a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+    </button>
+    
+    <!-- Panel de Controles Deslizable -->
+    <div id="controls-panel">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-xl font-bold text-white">Controles</h2>
+            <button id="close-controls-button" class="p-2 rounded-full hover:bg-white/10 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-white"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        
+        <div class="space-y-4">
+            <label for="theme-input" class="text-sm font-medium text-gray-300">Generador de Paleta por IA</label>
+            <input type="text" id="theme-input" placeholder="Ej: galaxia, bosque neón..." class="w-full bg-black/30 border border-gray-600 rounded-md px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 transition">
+            <button id="generate-palette-button" class="w-full bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded-md text-sm transition-all duration-300 ease-in-out transform hover:scale-105 shadow-lg flex items-center justify-center">
+                <span id="button-text">🎨 Generar Paleta</span>
+            </button>
+             <p id="gemini-status" class="text-xs text-cyan-400 mt-1 h-4 text-center"></p>
+        </div>
+
+        <!-- Selector de Visualizador -->
+        <div class="mt-6">
+            <label class="text-sm font-medium text-gray-300">Visualizador</label>
+            <div id="visualizer-selector" class="grid grid-cols-2 gap-2 mt-2">
+                <!-- Los botones se generan dinámicamente aquí -->
+            </div>
+        </div>
+        
+        <div class="mt-auto text-xs text-gray-500">
+            <p>Una obra de: [Tu Nombre Aquí]</p>
+        </div>
+    </div>
+
+
+    <!-- Pantalla de inicio -->
+    <div id="start-screen" class="absolute inset-0 flex items-center justify-center z-20">
+        <div class="text-center p-4 max-w-2xl">
+            <h1 class="text-5xl md:text-7xl font-bold text-white mb-4">Kinefonía</h1>
+            <p class="text-lg text-gray-300 mb-10">Crea música y visuales con tu movimiento.</p>
+            
+            <!-- Instrucciones -->
+            <div class="flex justify-center items-center space-x-8 md:space-x-12 mb-12 text-gray-400">
+                <div class="flex flex-col items-center space-y-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21a9 9 0 0 0 9-9 9 9 0 0 0-9-9 9 9 0 0 0-9 9 9 9 0 0 0 9 9z"></path><path d="M12 8v4l2 2"></path></svg>
+                    <span class="text-sm">Muévete y Habla</span>
+                </div>
+                <div class="flex flex-col items-center space-y-2">
+                     <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"></path><line x1="16" y1="8" x2="2" y2="22"></line><line x1="17.5" y1="15.5" x2="9" y2="7"></line></svg>
+                    <span class="text-sm">Arrastra para Rotar</span>
+                </div>
+                <div class="flex flex-col items-center space-y-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3c-1.2 0-2.4.6-3 1.7A3.2 3.2 0 0 0 3 8c0 1.7 1.3 3 3 3h12c1.7 0 3-1.3 3-3a3.2 3.2 0 0 0-6-3.3c-.6-1.1-1.8-1.7-3-1.7Z"></path><path d="M12 21a9 9 0 0 0 9-9 9 9 0 0 0-9-9 9 9 0 0 0-9 9 9 9 0 0 0 9 9Z"></path></svg>
+                    <span class="text-sm">Pellizca para Zoom</span>
+                </div>
+            </div>
+
+            <button id="start-button" class="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-3 px-6 rounded-lg text-xl transition-all duration-300 ease-in-out shadow-lg">
+                Iniciar Experiencia
+            </button>
+            <p id="error-message" class="mt-4 text-red-400"></p>
+        </div>
+    </div>
+    <!-- Previsualización de la cámara -->
+    <video id="video-preview" autoplay playsinline muted></video>
+
+    <!-- Import Map para Three.js -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <!-- Script principal -->
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+        // --- Elementos del DOM ---
+        const startButton = document.getElementById('start-button');
+        const startScreen = document.getElementById('start-screen');
+        const errorMessage = document.getElementById('error-message');
+        const themeInput = document.getElementById('theme-input');
+        const generatePaletteButton = document.getElementById('generate-palette-button');
+        const buttonText = document.getElementById('button-text');
+        const geminiStatus = document.getElementById('gemini-status');
+        const videoElement = document.getElementById('video-preview');
+        const openControlsButton = document.getElementById('open-controls-button');
+        const closeControlsButton = document.getElementById('close-controls-button');
+        const controlsPanel = document.getElementById('controls-panel');
+        const visualizerSelector = document.getElementById('visualizer-selector');
+
+        // --- Variables Globales ---
+        let scene, camera, renderer, composer, controls;
+        let audioContext, analyser, dataArray;
+        let videoTexture;
+        let currentVisualizer = null;
+        let currentPaletteHex = ["#00F5D4", "#00B9F1", "#9B5DE5", "#F15BB5", "#FEE440"];
+        let clock = new THREE.Clock();
+        let smoothedAudioLevel = 0;
+
+        // --- Variables para Análisis de Movimiento y Síntesis de Sonido ---
+        let motionAnalysisCanvas, motionAnalysisCtx;
+        let lastVideoFrameData;
+        let motionAudio = { osc1: null, osc2: null, filter: null, gain: null, delay: null, delayFeedback: null, reverb: null, reverbGain: null };
+        let smoothedMotionAmount = 0;
+        let lastMotionAmount = 0;
+        const motionTriggerThreshold = 0.005; 
+        const musicalScale = [220.00, 261.63, 293.66, 329.63, 392.00, 440.00, 523.25, 587.33, 659.25, 880.00];
+
+        // --- Shaders (GLSL) ---
+        const seaVertexShader = `
+            uniform float uTime;
+            uniform sampler2D uFrequencyTexture;
+            uniform sampler2D uVideoTexture;
+            varying float vElevation;
+            vec4 permute(vec4 x){return mod(((x*34.0)+1.0)*x, 289.0);}
+            vec4 taylorInvSqrt(vec4 r){return 1.79284291400159 - 0.85373472095314 * r;}
+            float snoise(vec3 v){const vec2 C=vec2(1.0/6.0,1.0/3.0);const vec4 D=vec4(0.0,0.5,1.0,2.0);vec3 i=floor(v+dot(v,C.yyy));vec3 x0=v-i+dot(i,C.xxx);vec3 g=step(x0.yzx,x0.xyz);vec3 l=1.0-g;vec3 i1=min(g.xyz,l.zxy);vec3 i2=max(g.xyz,l.zxy);vec3 x1=x0-i1+C.xxx;vec3 x2=x0-i2+C.yyy;vec3 x3=x0-D.yyy;i=mod(i,289.0);vec4 p=permute(permute(permute(i.z+vec4(0.0,i1.z,i2.z,1.0))+i.y+vec4(0.0,i1.y,i2.y,1.0))+i.x+vec4(0.0,i1.x,i2.x,1.0));float n_=.142857142857;vec3 ns=n_*D.wyz-D.xzx;vec4 j=p-49.0*floor(p*ns.z*ns.z);vec4 x_=floor(j*ns.z);vec4 y_=floor(j-7.0*x_);vec4 x=x_*ns.x+ns.yyyy;vec4 y=y_*ns.x+ns.yyyy;vec4 h=1.0-abs(x)-abs(y);vec4 b0=vec4(x.xy,y.xy);vec4 b1=vec4(x.zw,y.zw);vec4 s0=floor(b0)*2.0+1.0;vec4 s1=floor(b1)*2.0+1.0;vec4 sh=-step(h,vec4(0.0));vec4 a0=b0.xzyw+s0.xzyw*sh.xxyy;vec4 a1=b1.xzyw+s1.xzyw*sh.zzww;vec3 p0=vec3(a0.xy,h.x);vec3 p1=vec3(a0.zw,h.y);vec3 p2=vec3(a1.xy,h.z);vec3 p3=vec3(a1.zw,h.w);vec4 norm=taylorInvSqrt(vec4(dot(p0,p0),dot(p1,p1),dot(p2,p2),dot(p3,p3)));p0*=norm.x;p1*=norm.y;p2*=norm.z;p3*=norm.w;vec4 m=max(0.6-vec4(dot(x0,x0),dot(x1,x1),dot(x2,x2),dot(x3,x3)),0.0);m=m*m;return 42.0*dot(m*m,vec4(dot(p0,x0),dot(p1,x1),dot(p2,x2),dot(p3,x3)));}
+            void main() {
+                vec3 pos = position;
+                float noise = snoise(vec3(position.x * 0.02, position.y * 0.02, uTime * 0.2)) * 10.0;
+                float freq = texture2D(uFrequencyTexture, uv).r;
+                vec2 videoUV = vec2(1.0 - uv.x, uv.y);
+                vec4 videoColor = texture2D(uVideoTexture, videoUV);
+                float brightness = (videoColor.r + videoColor.g + videoColor.b) / 3.0;
+                pos.z += noise + (freq * 60.0) + (brightness * 100.0);
+                vElevation = pos.z;
+                vec4 mvPosition = modelViewMatrix * vec4(pos, 1.0);
+                gl_PointSize = 2.0 * (1.0 + freq * 2.0) * (200.0 / -mvPosition.z);
+                gl_Position = projectionMatrix * mvPosition;
+            }
+        `;
+        const seaFragmentShader = `
+            varying float vElevation;
+            uniform vec3 uColor1;
+            uniform vec3 uColor2;
+            uniform vec3 uColor3;
+            void main() {
+                vec3 finalColor = uColor1;
+                finalColor = mix(finalColor, uColor2, smoothstep(0.0, 20.0, vElevation));
+                finalColor = mix(finalColor, uColor3, smoothstep(20.0, 50.0, vElevation));
+                float dist = distance(gl_PointCoord, vec2(0.5));
+                float alpha = 1.0 - smoothstep(0.45, 0.5, dist);
+                if (alpha < 0.01) discard;
+                gl_FragColor = vec4(finalColor, alpha);
+            }
+        `;
+        
+        const visualizers = {
+            'Mar de Partículas': {
+                mesh: null, frequencyTexture: null, smoothedFrequencyData: null,
+                init: () => {
+                    const viz = visualizers['Mar de Partículas'];
+                    viz.smoothedFrequencyData = new Float32Array(analyser.frequencyBinCount);
+                    viz.frequencyTexture = new THREE.DataTexture(viz.smoothedFrequencyData, analyser.frequencyBinCount, 1, THREE.RedFormat, THREE.FloatType);
+                    const geometry = new THREE.PlaneGeometry(300, 300, 100, 100);
+                    const material = new THREE.ShaderMaterial({
+                        uniforms: { uTime: { value: 0.0 }, uFrequencyTexture: { value: viz.frequencyTexture }, uVideoTexture: { value: videoTexture }, uColor1: { value: new THREE.Color(0x000000) }, uColor2: { value: new THREE.Color(0x000000) }, uColor3: { value: new THREE.Color(0x000000) }},
+                        vertexShader: seaVertexShader, fragmentShader: seaFragmentShader, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
+                    });
+                    viz.mesh = new THREE.Points(geometry, material);
+                    viz.mesh.rotation.x = -Math.PI / 2.2;
+                    scene.add(viz.mesh);
+                },
+                update: (time) => {
+                    const viz = visualizers['Mar de Partículas'];
+                    if(!viz.mesh) return;
+                    viz.mesh.material.uniforms.uTime.value = time;
+                    for(let i = 0; i < dataArray.length; i++) {
+                        const v = dataArray[i] / 255;
+                        viz.smoothedFrequencyData[i] = THREE.MathUtils.lerp(viz.smoothedFrequencyData[i], v, 0.15);
+                    }
+                    viz.frequencyTexture.needsUpdate = true;
+                },
+                destroy: () => {
+                    const viz = visualizers['Mar de Partículas'];
+                    if (viz.mesh) {
+                        scene.remove(viz.mesh);
+                        viz.mesh.geometry.dispose();
+                        viz.mesh.material.dispose();
+                        viz.mesh = null;
+                    }
+                }
+            },
+            'Synapse': {
+                group: null, neurons: null, synapses: null,
+                init: () => {
+                    const viz = visualizers.Synapse;
+                    viz.group = new THREE.Group();
+                    scene.add(viz.group);
+
+                    const neuronCount = 250;
+                    const radius = 70;
+                    const positions = [];
+
+                    // Crear posiciones de neuronas en una esfera
+                    for (let i = 0; i < neuronCount; i++) {
+                        const phi = Math.acos(-1 + (2 * i) / neuronCount);
+                        const theta = Math.sqrt(neuronCount * Math.PI) * phi;
+                        positions.push(
+                            radius * Math.cos(theta) * Math.sin(phi),
+                            radius * Math.sin(theta) * Math.sin(phi),
+                            radius * Math.cos(phi)
+                        );
+                    }
+                    
+                    // Neuronas (Puntos)
+                    const neuronGeometry = new THREE.BufferGeometry();
+                    neuronGeometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+                    const neuronMaterial = new THREE.PointsMaterial({
+                        size: 1, color: 0xffffff, sizeAttenuation: true, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false
+                    });
+                    viz.neurons = new THREE.Points(neuronGeometry, neuronMaterial);
+                    viz.group.add(viz.neurons);
+
+                    // Synapses (Líneas)
+                    const linePositions = [];
+                    const connections = 2;
+                    for (let i = 0; i < neuronCount; i++) {
+                        for (let j = 1; j <= connections; j++) {
+                            const partner = (i + Math.floor(1 + Math.random() * neuronCount / 2)) % neuronCount;
+                            linePositions.push(positions[i*3], positions[i*3+1], positions[i*3+2]);
+                            linePositions.push(positions[partner*3], positions[partner*3+1], positions[partner*3+2]);
+                        }
+                    }
+                    const lineGeometry = new THREE.BufferGeometry();
+                    lineGeometry.setAttribute('position', new THREE.Float32BufferAttribute(linePositions, 3));
+                    const lineMaterial = new THREE.LineBasicMaterial({
+                        color: 0xffffff, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.2, depthWrite: false
+                    });
+                    viz.synapses = new THREE.LineSegments(lineGeometry, lineMaterial);
+                    viz.group.add(viz.synapses);
+                },
+                update: (time, audioLevel) => {
+                    const viz = visualizers.Synapse;
+                    if (!viz.group) return;
+                    viz.group.rotation.y = time * 0.1;
+                    viz.group.rotation.x = time * 0.05;
+
+                    const pulse = Math.pow(audioLevel, 1.5);
+                    viz.neurons.material.size = 1.5 + pulse * 10;
+                    viz.neurons.material.opacity = 0.5 + pulse * 0.5;
+                    viz.synapses.material.opacity = 0.2 + pulse * 0.4;
+                },
+                destroy: () => {
+                    const viz = visualizers.Synapse;
+                    if (viz.group) {
+                        scene.remove(viz.group);
+                        viz.neurons.geometry.dispose();
+                        viz.neurons.material.dispose();
+                        viz.synapses.geometry.dispose();
+                        viz.synapses.material.dispose();
+                        viz.group = null;
+                    }
+                }
+            }
+        };
+
+        async function getPaletteFromGemini(prompt) {
+            geminiStatus.textContent = 'Generando...';
+            generatePaletteButton.disabled = true;
+            buttonText.innerHTML = `<svg class="loader-icon -ml-1 mr-3 h-5 w-5 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Creando...`;
+            const payload = {
+                contents: [{ parts: [{ text: `Genera una paleta de 5 códigos de color hexadecimales para un visualizador de música con fondo negro, basado en el tema: "${prompt}". Deben ser vibrantes y complementarios.` }] }],
+                generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: { "colors": { "type": "ARRAY", "items": { "type": "STRING" } } } } }
+            };
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            try {
+                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
+                const result = await response.json();
+                const jsonText = result.candidates[0].content.parts[0].text;
+                const parsedJson = JSON.parse(jsonText);
+                if (parsedJson.colors && parsedJson.colors.length > 0) {
+                    updatePalette(parsedJson.colors);
+                    geminiStatus.textContent = '¡Paleta actualizada!';
+                } else { geminiStatus.textContent = 'Respuesta inválida.'; }
+            } catch (error) {
+                console.error("Error al llamar a la API de Gemini:", error);
+                geminiStatus.textContent = 'Error al generar.';
+            } finally {
+                generatePaletteButton.disabled = false;
+                buttonText.innerHTML = '🎨 Generar Paleta';
+                setTimeout(() => { geminiStatus.textContent = ''; }, 3000);
+            }
+        }
+
+        function updatePalette(newColorsHex) {
+            if (!window.TWEEN) return;
+            currentPaletteHex = newColorsHex;
+            const newColors = newColorsHex.map(hex => new THREE.Color(hex));
+            
+            if (currentVisualizer === visualizers['Mar de Partículas'] && visualizers['Mar de Partículas'].mesh) {
+                const mat = visualizers['Mar de Partículas'].mesh.material;
+                new TWEEN.Tween(mat.uniforms.uColor1.value).to(newColors[0], 500).start();
+                new TWEEN.Tween(mat.uniforms.uColor2.value).to(newColors[1], 500).start();
+                new TWEEN.Tween(mat.uniforms.uColor3.value).to(newColors[2] || newColors[0], 500).start();
+            }
+            if (currentVisualizer === visualizers.Synapse && visualizers.Synapse.group) {
+                const viz = visualizers.Synapse;
+                new TWEEN.Tween(viz.synapses.material.color).to(newColors[0], 500).start();
+                new TWEEN.Tween(viz.neurons.material.color).to(newColors[1], 500).start();
+            }
+        }
+
+        const tweenScript = document.createElement('script');
+        tweenScript.src = 'https://cdnjs.cloudflare.com/ajax/libs/tween.js/20.0.3/tween.umd.js';
+        document.head.appendChild(tweenScript);
+
+        function init() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            document.body.appendChild(renderer.domElement);
+
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.enableZoom = true;
+            controls.enablePan = true; 
+            controls.zoomSpeed = 1.0;
+            controls.panSpeed = 0.8;
+            controls.rotateSpeed = 0.7;
+
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0; bloomPass.strength = 0.8; bloomPass.radius = 0.5;
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
+            window.addEventListener('resize', onWindowResize, false);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function analyzeMotion() {
+            if (!motionAnalysisCtx || videoElement.readyState < videoElement.HAVE_METADATA) return 0;
+            const canvas = motionAnalysisCtx.canvas;
+            motionAnalysisCtx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            const currentFrameData = motionAnalysisCtx.getImageData(0, 0, canvas.width, canvas.height).data;
+            if (!lastVideoFrameData) {
+                lastVideoFrameData = new Uint8ClampedArray(currentFrameData);
+                return 0;
+            }
+            let motion = 0;
+            for (let i = 0; i < currentFrameData.length; i += 4) {
+                const luma1 = 0.2126 * lastVideoFrameData[i] + 0.7152 * lastVideoFrameData[i+1] + 0.0722 * lastVideoFrameData[i+2];
+                const luma2 = 0.2126 * currentFrameData[i] + 0.7152 * currentFrameData[i+1] + 0.0722 * currentFrameData[i+2];
+                motion += Math.abs(luma1 - luma2);
+            }
+            lastVideoFrameData.set(currentFrameData);
+            return motion / (currentFrameData.length * 64);
+        }
+
+        function playMusicalNote() {
+            if (!audioContext) return;
+            const noteFreq = musicalScale[Math.floor(Math.random() * musicalScale.length)];
+            const noteOsc = audioContext.createOscillator();
+            const noteGain = audioContext.createGain();
+            noteOsc.type = 'sine';
+            noteOsc.frequency.setValueAtTime(noteFreq, audioContext.currentTime);
+            noteGain.gain.setValueAtTime(0, audioContext.currentTime);
+            noteGain.gain.linearRampToValueAtTime(0.7, audioContext.currentTime + 0.05);
+            noteGain.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1.5);
+            noteOsc.connect(noteGain);
+            noteGain.connect(motionAudio.delay);
+            noteGain.connect(motionAudio.reverbGain);
+            noteGain.connect(audioContext.destination);
+            noteOsc.start();
+            noteOsc.stop(audioContext.currentTime + 2);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const time = clock.getElapsedTime();
+
+            if (analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                const bassLevel = dataArray.slice(0, 16).reduce((a, b) => a + b, 0) / 16 / 255;
+                smoothedAudioLevel = THREE.MathUtils.lerp(smoothedAudioLevel, bassLevel, 0.1);
+                if (currentVisualizer) {
+                    currentVisualizer.update(time, smoothedAudioLevel);
+                }
+            }
+
+            const motionAmount = analyzeMotion();
+            smoothedMotionAmount = THREE.MathUtils.lerp(smoothedMotionAmount, motionAmount, 0.1);
+            const motionDelta = smoothedMotionAmount - lastMotionAmount;
+            if (motionDelta > motionTriggerThreshold) {
+                playMusicalNote();
+            }
+            lastMotionAmount = smoothedMotionAmount;
+
+            if (motionAudio.gain && motionAudio.osc1) {
+                const targetGain = Math.min(smoothedMotionAmount * 1.0, 0.04); 
+                const baseFreq = 110 + (smoothedMotionAmount * 220); 
+                const filterFreq = 400 + (smoothedMotionAmount * 3000); 
+                const targetReverb = Math.min(smoothedMotionAmount * 0.8, 0.5);
+                const targetDelay = Math.min(smoothedMotionAmount * 0.5, 0.35);
+
+                if (audioContext) {
+                    const now = audioContext.currentTime;
+                    motionAudio.gain.gain.setTargetAtTime(targetGain, now, 0.1);
+                    motionAudio.osc1.frequency.setTargetAtTime(baseFreq, now, 0.2);
+                    motionAudio.osc2.frequency.setTargetAtTime(baseFreq * 1.01, now, 0.2); 
+                    motionAudio.filter.frequency.setTargetAtTime(filterFreq, now, 0.2);
+                    if (motionAudio.reverbGain) motionAudio.reverbGain.gain.setTargetAtTime(targetReverb, now, 0.2);
+                    if (motionAudio.delayFeedback) motionAudio.delayFeedback.gain.setTargetAtTime(targetDelay, now, 0.2);
+                }
+            }
+
+            if(window.TWEEN) TWEEN.update();
+            controls.update();
+            composer.render();
+        }
+
+        async function startMedia() {
+            try {
+                const mediaStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoElement.srcObject = mediaStream;
+                videoElement.style.display = 'block';
+                videoTexture = new THREE.VideoTexture(videoElement);
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                
+                const source = audioContext.createMediaStreamSource(mediaStream);
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 64;
+                source.connect(analyser);
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+
+                motionAudio.gain = audioContext.createGain();
+                motionAudio.filter = audioContext.createBiquadFilter();
+                motionAudio.osc1 = audioContext.createOscillator();
+                motionAudio.osc2 = audioContext.createOscillator();
+                motionAudio.delay = audioContext.createDelay(1.0);
+                motionAudio.delayFeedback = audioContext.createGain();
+                motionAudio.reverb = audioContext.createConvolver();
+                motionAudio.reverbGain = audioContext.createGain();
+
+                function createImpulseResponse(duration = 2, decay = 2) {
+                    const sampleRate = audioContext.sampleRate;
+                    const length = sampleRate * duration;
+                    const impulse = audioContext.createBuffer(2, length, sampleRate);
+                    const impulseL = impulse.getChannelData(0);
+                    const impulseR = impulse.getChannelData(1);
+                    for (let i = 0; i < length; i++) {
+                        const n = i / length;
+                        impulseL[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, decay);
+                        impulseR[i] = (Math.random() * 2 - 1) * Math.pow(1 - n, decay);
+                    }
+                    return impulse;
+                }
+                motionAudio.reverb.buffer = createImpulseResponse();
+
+                motionAudio.filter.type = 'lowpass';
+                motionAudio.filter.frequency.value = 200;
+                motionAudio.filter.Q.value = 5;
+                motionAudio.osc1.type = 'sawtooth';
+                motionAudio.osc1.frequency.value = 110;
+                motionAudio.osc2.type = 'sawtooth';
+                motionAudio.osc2.frequency.value = 110 * 1.01;
+                motionAudio.delay.delayTime.value = 0.33;
+                motionAudio.delayFeedback.gain.value = 0;
+                motionAudio.reverbGain.gain.value = 0;
+                motionAudio.gain.gain.value = 0;
+
+                motionAudio.osc1.connect(motionAudio.filter);
+                motionAudio.osc2.connect(motionAudio.filter);
+                motionAudio.filter.connect(motionAudio.gain);
+                motionAudio.gain.connect(audioContext.destination);
+                motionAudio.gain.connect(motionAudio.delay);
+                motionAudio.gain.connect(motionAudio.reverbGain);
+                motionAudio.delay.connect(motionAudio.delayFeedback);
+                motionAudio.delayFeedback.connect(motionAudio.delay);
+                motionAudio.delay.connect(audioContext.destination);
+                motionAudio.reverbGain.connect(motionAudio.reverb);
+                motionAudio.reverb.connect(audioContext.destination);
+                motionAudio.osc1.start();
+                motionAudio.osc2.start();
+
+                motionAnalysisCanvas = document.createElement('canvas');
+                motionAnalysisCanvas.width = 64;
+                motionAnalysisCanvas.height = 48;
+                motionAnalysisCtx = motionAnalysisCanvas.getContext('2d', { willReadFrequently: true });
+                motionAnalysisCtx.transform(-1, 0, 0, 1, motionAnalysisCanvas.width, 0);
+
+                startScreen.style.display = 'none';
+                openControlsButton.classList.remove('hidden');
+                
+                camera.position.set(0, 0, 150);
+                controls.target.set(0, 0, 0);
+                controls.enabled = true;
+
+                setVisualizer('Mar de Partículas'); // Establecer el visualizador inicial
+                updatePalette(currentPaletteHex);
+
+                animate();
+            } catch (err) {
+                console.error("Error al acceder a los medios:", err);
+                errorMessage.textContent = "Acceso a cámara/micrófono denegado. Revisa los permisos.";
+            }
+        }
+        
+        function setVisualizer(name) {
+            if (currentVisualizer && currentVisualizer.destroy) {
+                currentVisualizer.destroy();
+            }
+            currentVisualizer = visualizers[name];
+            if (currentVisualizer && currentVisualizer.init) {
+                currentVisualizer.init();
+                updatePalette(currentPaletteHex);
+            }
+            // Actualizar la UI de los botones
+            document.querySelectorAll('.viz-button').forEach(btn => {
+                if (btn.dataset.vizName === name) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+        }
+
+        function createVisualizerButtons() {
+            for (const name in visualizers) {
+                const button = document.createElement('button');
+                button.textContent = name;
+                button.dataset.vizName = name;
+                button.className = 'viz-button p-2 rounded-md text-sm text-gray-300';
+                button.addEventListener('click', () => setVisualizer(name));
+                visualizerSelector.appendChild(button);
+            }
+        }
+
+        // --- Event Listeners UI ---
+        generatePaletteButton.addEventListener('click', () => {
+            const prompt = themeInput.value;
+            if (prompt) getPaletteFromGemini(prompt);
+        });
+        themeInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') generatePaletteButton.click(); });
+        startButton.addEventListener('click', () => { init(); startMedia(); });
+        openControlsButton.addEventListener('click', () => controlsPanel.classList.add('open'));
+        closeControlsButton.addEventListener('click', () => controlsPanel.classList.remove('open'));
+
+        // --- Inicialización ---
+        createVisualizerButtons();
+
+    </script>
+</body>
+</html>
